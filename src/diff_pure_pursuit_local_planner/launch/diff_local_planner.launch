@@ -8,6 +8,8 @@
     <!-- 对齐你当前链路 -->
     <param name="topic_path" value="/opt_path"/>
     <param name="topic_odom" value="/truth_pose_odom"/>
+    <param name="topic_map" value="/local_map_esdf"/>
+
 
     <!-- 输出给底盘控制，你也可以 remap 到 /cmd_vel_auto -->
     <param name="topic_cmd"  value="/chassis_control"/>
