@@ -27,7 +27,7 @@
     <param name="local_map/ymax" value="4.0" type="double" />
     <param name="local_map/resolution" value="0.1" type="double" />
     <!-- 膨胀地图半径 -->
-    <param name="local_map/inflate" value="0.50" type="double" />
+    <param name="local_map/inflate" value="0.30" type="double" />
     <!-- 虚拟地图尺寸大小 -->
     <param name="local_map/virtual_map" value="1" type="double" />
 

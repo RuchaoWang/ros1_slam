@@ -33,7 +33,7 @@ public:
     // ---- topics ----
     pnh_.param<std::string>("topic_path", topic_path_, "/opt_path");
     pnh_.param<std::string>("topic_odom", topic_odom_, "/truth_pose_odom");
-    pnh_.param<std::string>("topic_map",  topic_map_,  "/local_map_esdf");
+    pnh_.param<std::string>("topic_map",  topic_map_,  "/local_map_inflate");
     pnh_.param<std::string>("topic_cmd",  topic_cmd_,  "/chassis_control");
 
     // ---- pure pursuit params ----

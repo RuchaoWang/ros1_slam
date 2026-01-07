@@ -244,7 +244,7 @@ float Differential_DWAPlanner::calc_speed_cost(const std::vector<State> &traj, c
   return cost;
 }
 
-// 计算到障碍物的距离数值
+// 计算到障碍物的距离数值 --wrc 2026-1-7
 float Differential_DWAPlanner::calc_obstacle_cost(std::vector<State> &traj,const std::vector<std::vector<float>> &obs_list)
 {
   float cost = 0.0;

@@ -14,32 +14,35 @@
     <remap from="/chassis_control" to="/cmd_vel_auto"/>
 
     <!-- pure pursuit -->
-    <param name="lookahead_dist" value="0.8"/>
+    <param name="lookahead_dist" value="4.0"/>
     <param name="goal_tolerance" value="0.25"/>
     <param name="max_v" value="0.8"/>
     <param name="max_w" value="0.8"/>
     <param name="min_v" value="0.05"/>
+    <!-- <param name="max_v" value="2.0"/>
+    <param name="max_w" value="1.57"/>
+    <param name="min_v" value="-2.0"/> -->
     <param name="k_heading" value="1.8"/>
     <param name="v_scale" value="1.0"/>
 
     <!-- rate/timeouts -->
     <param name="cmd_rate" value="30.0"/>
-    <param name="timeout_path" value="1.0"/>
+    <param name="timeout_path" value="5.0"/>
     <param name="timeout_odom" value="0.5"/>
     <param name="timeout_map"  value="1.0"/>
 
     <!-- avoidance -->
     <param name="enable_avoid" value="true"/>
-    <param name="occ_threshold" value="100"/>
-    <param name="robot_radius" value="0.2"/>
+    <param name="occ_threshold" value="95"/>
+    <param name="robot_radius" value="0.0"/>
 
-    <param name="sim_horizon" value="1.5"/>
+    <param name="sim_horizon" value="5.0"/>
     <param name="sim_dt" value="0.02"/>
     <param name="v_samples" value="8"/>
     <param name="w_samples" value="15"/>
 
     <param name="w_track" value="2.0"/>
-    <param name="w_obs" value="1.0"/>
+    <param name="w_obs" value="0.01"/>
     <param name="w_smooth" value="0.2"/>
 
     <!-- visualization -->
