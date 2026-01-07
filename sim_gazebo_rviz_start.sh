@@ -42,7 +42,7 @@ gnome-terminal -t "laser to cloud" -- bash -lc "source ~/Gitkraken/ros1_slam/dev
 # 8）局部规划***********
 gnome-terminal -t "DWA_new" -- bash -lc \
 "source ~/Gitkraken/ros1_slam/devel/setup.bash; 
-roslaunch diff_pure_pursuit_local_planner diff_local_planner.launch; exec bash"
+roslaunch robot_navigation Differential_DWA.launch; exec bash"
 
 # 9) 启动并发布机器人真值里程计消息
 gnome-terminal -t "truth Odom start" -- bash -lc "source ~/Gitkraken/ros1_slam/devel/setup.bash;  roslaunch robot_locatization truth_odometry.launch;exec bash"

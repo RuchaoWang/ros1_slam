@@ -21,6 +21,8 @@ Differential_DWAPlanner::Differential_DWAPlanner(void)
   local_nh.param("OBSTACLE_COST_GAIN", OBSTACLE_COST_GAIN, {1.0});
   local_nh.param("GOAL_THRESHOLD", GOAL_THRESHOLD, {0.3});
   local_nh.param("TURN_DIRECTION_THRESHOLD", TURN_DIRECTION_THRESHOLD, {1.0});
+
+  local_nh.param("TEMP_GOAL_RADIUS", TEMP_GOAL_RADIUS, {4});
   DT = 1.0 / HZ;
   
   // 跟随路径集合的发布
@@ -30,12 +32,21 @@ Differential_DWAPlanner::Differential_DWAPlanner(void)
   // 发布局部规划路径
   localPathPub = local_nh.advertise<nav_msgs::Path>("/local_path",1);
   // 发布局部规划出来的速度
-  chassCtlPub = local_nh.advertise<geometry_msgs::Twist>("/chassis_control", 1, true);
+  chassCtlPub = local_nh.advertise<geometry_msgs::Twist>("/cmd_vel_auto", 1, true);
+
+  // 查看局部终点
+  localgoalPub = nh.advertise<visualization_msgs::Marker>("/local_goal",10);
 
   local_goal_sub = nh.subscribe("/local_goal", 1, &Differential_DWAPlanner::local_goal_callback, this);
   local_map_sub = nh.subscribe("/local_map_inflate", 1, &Differential_DWAPlanner::local_map_callback, this);
   odom_sub = nh.subscribe("/truthPose", 1, &Differential_DWAPlanner::odom_callback, this);
   target_velocity_sub = nh.subscribe("/velocity_control", 1, &Differential_DWAPlanner::target_velocity_callback, this);
+    // 订阅路径
+  pathSub = nh.subscribe("/opt_path",10,&Differential_DWAPlanner::pathCallback,this);
+  // pid参数初始化
+  pidFollow.Init();
+  // 角度跟随PID参数初始化
+  pidFollow.SetPIDParameter(&pidFollow.gyro_pid,anglePID);
 }
 
 Differential_DWAPlanner::State::State(double _x, double _y, double _yaw, double _velocity, double _yawrate)
@@ -79,6 +90,295 @@ void Differential_DWAPlanner::odom_callback(const nav_msgs::OdometryConstPtr &ms
   current_velocity.linear.x = velocity;
 
   odom_updated = true;
+}
+
+// 路径回调函数
+void Differential_DWAPlanner::pathCallback(const nav_msgs::PathConstPtr &path)
+{
+  nav_msgs::Path tempath = *path;
+
+  // 获取当前路径点数目
+  path_nodes_num = tempath.poses.size();
+  // 判断路径是不是空的
+  if(path_nodes_num <= 0)
+  {
+    return;
+  }
+
+  // 当两次路径点数目没有发生改变，认为当前的终点没有发生变化，还是原来的路径
+  if(path_nodes_num == last_path_nodes_num)
+  {
+    // 路径没有更新
+    update_path = false;
+  }
+  if(path_nodes_num != last_path_nodes_num)
+  {
+    // 路径更新了
+    update_path = true;
+  }
+
+  // 路径更新了就把新的路径放进来
+  if(update_path == true)
+  {
+    // 跟随路径清空
+    trajpath.clear();
+    // 更新
+    visitPath.clear();
+    // 对跟随路径进行赋值
+    for (int i = 0; i < path_nodes_num; i++)
+    {
+      // 临时路径点用于数据类型转换
+      // 设定为0代表新的路径所有点没有被访问过
+      Vector2d tempoint =Vector2d (tempath.poses[i].pose.position.x,
+                                   tempath.poses[i].pose.position.y);
+      // 添加到跟随路径中
+      trajpath.push_back(tempoint);
+      visitPath.push_back(make_pair(0,tempoint));
+    }
+
+    firststartPoint[0] = tempath.poses[0].pose.position.x;
+    firststartPoint[1] = tempath.poses[1].pose.position.x;
+  }
+
+  // 当没更新的时候
+  if(update_path == false)
+  {
+    // 定义临时终点
+    Vector2d tempgoal;
+    // 得出位置角度
+    Vector2d tempnow = Vector2d(nowposition[0],nowposition[1]);
+    tempgoal = caLocalGoalPosition(trajpath,tempnow,TEMP_GOAL_RADIUS);
+    // 设定水平向量
+    Vector2d horizontal = Vector2d(1.0,0);
+    double angle =  calVectorAngle(horizontal,tempgoal-tempnow);
+    // 使用templocal中最后一个担任临时终点
+    localposition[0] = tempgoal[0];
+    localposition[1] = tempgoal[1];
+    // 获取角度
+    localposition[2] = angle;
+    local_goal_subscribed = true;
+  }
+  vector<Vector2d> tempvec;
+  tempvec.push_back(Vector2d(localposition[0],localposition[1]));
+  visual_VisitedNode(localgoalPub,tempvec,1,0,1,0.5,5);
+
+  // // 获取机器人的速度，用作目标速度
+  // GetRobotVelocity(nowposition,localposition,TARGET_VELOCITY);
+
+  // 获取当前路径点的数目用作比较
+  last_path_nodes_num = path_nodes_num;
+}
+
+// 计算向量之间的夹角
+double Differential_DWAPlanner::calVectorAngle(Vector2d vector1,Vector2d vector2)
+{
+  // 先单位化
+  Vector2d vectorFirst = calUnitvector(vector1);
+  // 
+  Vector2d vectorSecond = calUnitvector(vector2);
+
+  // 向量乘积
+  double vector_angle = vectorFirst[0]*vectorSecond[0] + vectorFirst[1]*vectorSecond[1];
+  // 计算夹角
+  return acos(vector_angle);
+}
+
+// 计算两个点之间的长度欧氏距离
+double Differential_DWAPlanner::calPointLength(Vector2d vector1,Vector2d vector2)
+{
+  return (sqrt((vector1[0]-vector2[0])*(vector1[0]-vector2[0])+(vector1[1]-vector2[1])*(vector1[1]-vector2[1])));
+}
+
+// 用来求解当前位置点以一定半径相交的路径点
+// path 输入路径
+// radius 搜索半径
+// updatepath 路径是否更新
+// return 局部终点
+Vector2d Differential_DWAPlanner::caLocalGoalPosition(vector<Vector2d> path,Vector2d nowpoint,double radius)
+{
+  Vector2d localgoal;
+  static int last_point_num;
+  int path_length_num = path.size();
+
+  // 计算当前位置到路径点上的最小距离
+  double min_distance = 1000;
+  int now_num;    //定位当前点再路径上的位置
+  for (int i = 0; i < path_length_num; i++)
+  {
+    // 计算距离
+    double distance = calPointLength(path[i],nowpoint);
+    if(distance < min_distance)
+    {
+      min_distance = distance;
+      now_num = i;
+    }
+  }
+
+  // 跟随路径点
+  int traj_num = 0;
+  for (int i = now_num+1; i < path_length_num; i++)
+  {
+    // 计算距离
+    double distance = calPointLength(visitPath[now_num].second,visitPath[i].second);
+    // 距离约束并且一定不能访问过
+    if(distance >= radius && distance < radius + 0.3 && visitPath[i].first == 0)
+    {
+      traj_num = i;
+      break;
+    }
+  }
+
+  // 路径更新
+  if(update_path == true)
+  {
+    last_point_num = 0;
+  }
+
+  // 等于上一个
+  if(traj_num == 0)
+  {
+    // 获取上一个点
+    traj_num = last_point_num;
+  }
+
+  // 之前的点设定为1
+  for (int i = 0; i < traj_num; i++)
+  {
+    visitPath[i].first = 1;
+  }
+
+  // 确定下一个点的采样位置
+  if(traj_num < path_length_num-1)
+  {
+    localgoal = path[traj_num];
+  }
+  else
+  {
+    localgoal = path[path_length_num-1];
+  }
+
+  // 判断得出的局部终点到最后终点的位置
+  double lastdis = calPointLength(localgoal,path[path_length_num-1]);
+  if(lastdis <= radius+0.3)
+  {
+    localgoal = path[path_length_num-1]; 
+  } 
+
+  // 获取点
+  last_point_num = traj_num;
+  return localgoal;
+}
+
+// 计算单位向量
+Vector2d Differential_DWAPlanner::calUnitvector(Vector2d unitv)
+{
+  // 计算单位向量
+  unitv = unitv * 1.0f/(sqrt(pow(abs(unitv[0]),2)+pow(abs(unitv[1]),2)));
+  return unitv;
+}
+
+// 用来对速度进行限制,因为机器人是全向移动的,如果直接通过数值对x y速度限制会产生畸变
+// 所以需要先合成,再进行限制
+// vel_x 输入的x方向上的速度
+// vel_y 输入的y方向上的速度
+// limit_velocity 限制的速度
+void Differential_DWAPlanner::LIMIT_VECTOR_Velocity(double &vel_x,double &vel_y,double limit_velocity)
+{
+  // 获取速度
+  double temp_x_velocity = abs(vel_x);
+  double temp_y_velocity = abs(vel_y);
+  // 总的速度
+  double sum_velocity = sqrt(pow(temp_x_velocity,2)+pow(temp_y_velocity,2));
+
+  // 判断速度大小
+  if(sum_velocity > limit_velocity)
+  {
+    // 求解缩小比例
+    double scale_down = sum_velocity/limit_velocity;
+    // 求解速度
+    vel_x = vel_x/scale_down;
+    vel_y = vel_y/scale_down;
+  }
+  else
+  {
+    vel_x = vel_x;
+    vel_y = vel_y;
+  }
+}
+
+// 获取机器人的速度
+// nowpoint  当前位置
+// endpoint  终点位置
+void Differential_DWAPlanner::GetRobotVelocity(Vector3d nowpoint,Vector3d endpoint,Vector3d &localvelocity)
+{
+  Vector2d tempvelocity;
+
+  // 根据临时终点计算目标速度 先计算线速度 再计算角度
+  tempvelocity[0] = endpoint[0] - nowpoint[0];
+  tempvelocity[1] = endpoint[1] - nowpoint[1];
+
+  // 获取世界坐标系下的速度
+  worldVel.Vx = tempvelocity[0];
+  worldVel.Vy = tempvelocity[1];
+  // 获取当前角度
+  carVel.yaw = nowpoint[2];
+  // 全局速度转换成局部速度
+  vel_transform::GlobalVelocityToLocalVector(&carVel,&worldVel);
+
+  // 限制速度矢量
+  // LIMIT_VECTOR_Velocity(carVel.Vx,carVel.Vy,MAX_VELOCITY_X);
+  LIMIT_VECTOR_Velocity(carVel.Vx,carVel.Vy,MAX_VELOCITY);
+  localvelocity[0] = carVel.Vx;
+  localvelocity[1] = carVel.Vy;
+
+  // 定义临时终点和临时起点
+  Vector2d tempgoal = Vector2d(endpoint[0],endpoint[1]);
+  Vector2d tempnow = Vector2d(nowpoint[0],nowpoint[1]);
+  // 求解角速度，这里按照路径长度/合成速度解算=时间 再用角度/时间得到角速度
+  double distance = calPointLength(tempnow,tempgoal);
+  // 求解时间
+  double use_time = distance/sqrt(pow(carVel.Vx,2)+pow(carVel.Vy,2));
+
+  Vector2d positive_vel = Vector2d(1.0,0.0);
+  double setcarangle = calVectorAngle(positive_vel,tempvelocity);
+
+  // 计算角度度
+  pidFollow.gyro_pid.SetPoint = setcarangle;
+  pidFollow.gyro_pid.feedPoint = nowpoint[2];
+  Deal_Super_Circle(&pidFollow.gyro_pid.SetPoint,&pidFollow.gyro_pid.feedPoint);
+  pidFollow.PIDFloatPositionCal(&pidFollow.gyro_pid);
+
+  // 限制幅度
+  pidFollow.gyro_pid.OutPoint = LIMIT(pidFollow.gyro_pid.OutPoint,-M_PI,M_PI);
+  localvelocity[2] = pidFollow.gyro_pid.OutPoint;
+  localvelocity[2] = 0;
+}
+
+void Differential_DWAPlanner::Deal_Super_Circle(double *setangle,double *feedangle)
+{
+  /* 
+    因为当前的车的临界值是±PI，所以在达到这个角度的时候车只会按照
+    正常的累积误差计算
+  */
+  float delta = *feedangle - *setangle;
+  if(delta >= -M_PI && delta <= M_PI)
+  {
+    *feedangle = 0.0f;
+    *setangle = delta;
+  }
+  else if(delta > M_PI)
+  {
+    *feedangle = 0.0f;
+    *setangle = -M_PI*2 + delta;
+  }
+  else if(delta < -M_PI)
+  {
+    *feedangle = 0.0f;
+    *setangle = M_PI*2+delta;
+  }
+
+  *setangle = -*setangle;
+  *feedangle = 0.0f; 
 }
 
 void Differential_DWAPlanner::target_velocity_callback(const geometry_msgs::TwistConstPtr &msg)
@@ -162,10 +462,15 @@ void Differential_DWAPlanner::process(void)
   {
     ROS_INFO("==========================================");
     double start = ros::Time::now().toSec();
+
+
     if (local_map_updated && local_goal_subscribed && odom_updated)
     {
       Window dynamic_window = calc_dynamic_window(current_velocity);
-      Eigen::Vector3d goal(local_goal.Position_x, local_goal.Position_y,local_goal.Position_yaw/180*M_PI);
+
+      // Eigen::Vector3d goal(local_goal.Position_x, local_goal.Position_y,local_goal.Position_yaw/180*M_PI);
+      Eigen::Vector3d goal(localposition[0], localposition[1],localposition[2]);
+
       ROS_INFO_STREAM("local goal: (" << goal[0] << "," << goal[1] << "," << goal[2] / M_PI * 180 << ")");
       geometry_msgs::Twist cmd_vel;
       if (goal.segment(0, 2).norm() > GOAL_THRESHOLD)
@@ -413,3 +718,44 @@ void Differential_DWAPlanner::visualize_trajectory(const std::vector<State> &tra
   // 发布跟随以nav_msgs::Path的消息类型发布路径
   localPathPub.publish(local_path);
 }
+
+
+void Differential_DWAPlanner::visual_VisitedNode(ros::Publisher pathPublish, std::vector<Eigen::Vector2d> visitnodes,
+float a_set,float r_set,float g_set,float b_set,float length)
+{
+  visualization_msgs::Marker node_vis;
+  node_vis.header.frame_id = "map";
+  node_vis.header.stamp = ros::Time::now();
+
+  node_vis.color.a = a_set;
+  node_vis.color.r = r_set;
+  node_vis.color.g = g_set;
+  node_vis.color.b = b_set;
+  node_vis.ns = "differential_dwa";
+
+  node_vis.type = visualization_msgs::Marker::CUBE_LIST;
+  node_vis.action = visualization_msgs::Marker::ADD;
+  node_vis.id = 0;
+
+  node_vis.pose.orientation.x = 0.0;
+  node_vis.pose.orientation.y = 0.0;
+  node_vis.pose.orientation.z = 0.0;
+  node_vis.pose.orientation.w = 1.0;
+
+  node_vis.scale.x = 0.05*length;
+  node_vis.scale.y = 0.05*length;
+  node_vis.scale.z = 0.05*length;
+
+  geometry_msgs::Point pt;
+  for (int i = 0; i < int(visitnodes.size()); i++)
+  {
+    pt.x = visitnodes[i][0];
+    pt.y = visitnodes[i][1];
+    node_vis.points.push_back(pt);
+  }
+
+  pathPublish.publish(node_vis);
+}
+
+
+

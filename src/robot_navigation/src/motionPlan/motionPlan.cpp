@@ -541,6 +541,9 @@ void motionPlan::localizationCallback(const robot_communication::localizationInf
     }
   }
   getStartFlag = true; // 获取到起点标志位
+
+  // 2026-1-7修改 全局规划一直运行
+  getEndFlag = true;
 }
 
 // 静态地图订阅回调函数
@@ -717,6 +720,8 @@ void motionPlan::pathPlanning(Eigen::Vector2d startMapPoint, Eigen::Vector2d goa
     {
       if(getEndFlag == true)  //需要重新规划的时候
       {
+
+
         cout<<"Start is: "<<startMapPoint[0]<<" "<<startMapPoint[1]<<endl;
         cout<<"Goal is: "<<goalMapPoint[0]<<" "<<goalMapPoint[1]<<endl;
 

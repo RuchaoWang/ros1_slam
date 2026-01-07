@@ -9,6 +9,8 @@
     <rosparam command="load" file="$(arg robot_param)"/>
     <rosparam command="load" file="$(arg dwa_param)"/>
     <param name="HZ" value="$(arg hz)"/>
+
+    
   </node>
   
 </launch>

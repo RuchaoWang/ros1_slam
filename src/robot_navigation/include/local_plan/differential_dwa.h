@@ -31,6 +31,8 @@
 #include <Eigen/Dense>
 
 #include "vel_transform/vel_transform.h"
+#include "path_follow/pid_follow.h"
+
 // 包含自定义消息包
 #include "robot_communication/localizationInfoBroadcast.h"
 #include "robot_communication/chassisControl.h"
@@ -90,6 +92,8 @@ public:
   void scan_callback(const sensor_msgs::LaserScanConstPtr &msg);
   // 局部目标回调函数
   void local_goal_callback(const robot_communication::goalConstPtr &msg);
+  // 路径回调函数
+  void pathCallback(const nav_msgs::PathConstPtr &path);
   // 局部地图回调函数
   void local_map_callback(const nav_msgs::OccupancyGridConstPtr &msg);
   // 目标速度回调函数
@@ -202,6 +206,78 @@ protected:
   bool scan_updated;
   bool local_map_updated;
   bool odom_updated;
+
+  bool update_path;
+
+  // 用于判断路径点数目
+  int path_nodes_num;
+  int last_path_nodes_num;
+
+  // 定义一个代标志位的路径
+  vector<Vector2d> trajpath;
+  // 定义当前位置点
+  Vector3d nowposition;
+  // 定义局部终点
+  Vector3d localposition;
+  // 全局路径
+  vector<Vector2d> globalpath;
+
+  void visual_VisitedNode(ros::Publisher pathPublish, std::vector<Eigen::Vector2d> visitnodes,
+  float a_set,float r_set,float g_set,float b_set,float length);
+
+  // 获取机器人的速度
+  // nowpoint  当前位置
+  // endpoint  终点位置
+  void GetRobotVelocity(Vector3d nowpoint,Vector3d endpoint,Vector3d &localvelocity);
+
+  double anglePID[7] = {10.0,0,0,3.0,-3.0,0.05};
+  // pid参数初始化
+  pid_follow pidFollow;
+
+  void Deal_Super_Circle(double *setangle,double *feedangle);
+
+  ros::Publisher localgoalPub;      //局部终点查看
+
+  // 计算向量之间的夹角
+  double calVectorAngle(Vector2d vector1,Vector2d vector2);
+
+  // 定义访问路径用于查看是否访问过
+  vector<pair<int,Vector2d>> visitPath;
+
+  // 计算单位向量
+  Vector2d calUnitvector(Vector2d unitv);
+
+  // 用来求解当前位置点以一定半径相交的路径点
+  // path 输入路径
+  // radius 搜索半径
+  // updatepath 路径是否更新
+  // return 局部终点
+  Vector2d caLocalGoalPosition(vector<Vector2d> path,Vector2d nowpoint,double radius);
+
+  // 速度合成，局部转全局
+  // 车体局部速度和全局速度
+  Odom_data_define carVel;
+  Odom_data_define worldVel;
+
+  // 计算两个点之间的长度欧氏距离
+  double calPointLength(Vector2d vector1,Vector2d vector2);
+
+  // 最终终点
+  Vector2d lastendPoint;
+  // 最开始的起点
+  Vector2d firststartPoint;
+
+  // 定义规划路径半径，用于在先验路径中找点
+  double TEMP_GOAL_RADIUS;
+
+  // 用来对速度进行限制,因为机器人是全向移动的,如果直接通过数值对x y速度限制会产生畸变
+  // 所以需要先合成,再进行限制
+  // vel_x 输入的x方向上的速度
+  // vel_y 输入的y方向上的速度
+  // limit_velocity 限制的速度
+  void LIMIT_VECTOR_Velocity(double &vel_x,double &vel_y,double limit_velocity);
+  
+  ros::Subscriber pathSub;
 };
 
 #endif //__DWA_PLANNER_H

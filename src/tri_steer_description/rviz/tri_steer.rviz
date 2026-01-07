@@ -12,6 +12,7 @@ Panels:
         - /MarkerArray1
         - /Path2
         - /Map2
+        - /Marker1
       Splitter Ratio: 0.5
     Tree Height: 725
   - Class: rviz/Selection
@@ -270,10 +271,10 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /diff_pp/rollouts
+      Marker Topic: /Differential_DWA_node/candidate_trajectories
       Name: MarkerArray
       Namespaces:
-        rollouts: true
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -297,7 +298,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /diff_pp/best_path
+      Topic: /local_path
       Unreliable: false
       Value: true
     - Alpha: 0.699999988079071
@@ -309,6 +310,14 @@ Visualization Manager:
       Topic: /local_map_inflate
       Unreliable: false
       Use Timestamp: false
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /local_goal
+      Name: Marker
+      Namespaces:
+        {}
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -347,7 +356,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 79.31849670410156
+      Scale: 43.778045654296875
       Target Frame: <Fixed Frame>
       X: 9.759492874145508
       Y: 7.711053371429443
