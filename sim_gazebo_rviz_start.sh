@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+source ~/.bashrc
+
 set -e
 
 # 1) 清理旧进程（允许失败）
@@ -10,9 +12,9 @@ yes | rosclean purge
 
 sleep 2
 
-
 # 2) 启动 roscore
-gnome-terminal -t "roscore" -- bash -lc "roscore"
+#ros_term "roscore" "roscore"
+gnome-terminal --title="roscore" -- bash -c "roscore"
 
 # 等待 roscore 就绪
 until rostopic list >/dev/null 2>&1; do
@@ -20,7 +22,7 @@ until rostopic list >/dev/null 2>&1; do
 done
 
 # 3) 启动 Gazebo + robot
-gnome-terminal -t "gazebo_start" -- bash -lc "source ~/Gitkraken/ros1_slam/devel/setup.bash; roslaunch tri_steer_gazebo sim_gazebo_rviz.launch"
+gnome-terminal --title="gazebo_start" -- bash -c "source ~/Gitkraken/ros1_slam/devel/setup.bash; roslaunch tri_steer_gazebo sim_gazebo_rviz.launch"
 
 # 等待 Gazebo 节点起来（/gazebo/model_states 出现再继续）
 until rostopic list 2>/dev/null | grep -q "/gazebo/model_states"; do
@@ -44,7 +46,7 @@ gnome-terminal -t "laser to cloud" -- bash -lc "source ~/Gitkraken/ros1_slam/dev
 # "source ~/Gitkraken/ros1_slam/devel/setup.bash; 
 # roslaunch robot_navigation Differential_DWA.launch; exec bash"
 
-gnome-terminal -t "PID_control" -- bash -lc \
+gnome-terminal -t "PID_control" -- bash -c \
 "source ~/Gitkraken/ros1_slam/devel/setup.bash; 
 roslaunch robot_pid_local_planner Omnidirectional_PID.launch; exec bash"
 

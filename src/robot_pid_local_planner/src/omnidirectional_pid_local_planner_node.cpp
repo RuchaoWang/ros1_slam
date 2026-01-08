@@ -296,6 +296,8 @@ private:
     // 注意：最简版本用路径是否更新来触发刹停很难做得完美，
     // 所以这里用 “路径为空/到达” 来停；上层如果想强停，直接发空路径即可。
 
+    std::cout << "pid_code_start!" << std::endl;
+
     geometry_msgs::Twist cmd;
     cmd.linear.x = vx;
     cmd.linear.y = vy;
