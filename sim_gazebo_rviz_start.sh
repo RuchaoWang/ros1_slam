@@ -39,10 +39,14 @@ gnome-terminal -t "motion Plan start" -- bash -lc "source ~/Gitkraken/ros1_slam/
 # 7) 雷达点云转换成point-cloud2
 gnome-terminal -t "laser to cloud" -- bash -lc "source ~/Gitkraken/ros1_slam/devel/setup.bash; roslaunch read_laser_data laser_to_cloud.launch; exec bash"
 
-# 8）局部规划***********
-gnome-terminal -t "DWA_new" -- bash -lc \
+# 8）局部规划d算法***********
+# gnome-terminal -t "DWA_new" -- bash -lc \
+# "source ~/Gitkraken/ros1_slam/devel/setup.bash; 
+# roslaunch robot_navigation Differential_DWA.launch; exec bash"
+
+gnome-terminal -t "PID_control" -- bash -lc \
 "source ~/Gitkraken/ros1_slam/devel/setup.bash; 
-roslaunch robot_navigation Differential_DWA.launch; exec bash"
+roslaunch robot_pid_local_planner Omnidirectional_PID.launch; exec bash"
 
 # 9) 启动并发布机器人真值里程计消息
 gnome-terminal -t "truth Odom start" -- bash -lc "source ~/Gitkraken/ros1_slam/devel/setup.bash;  roslaunch robot_locatization truth_odometry.launch;exec bash"

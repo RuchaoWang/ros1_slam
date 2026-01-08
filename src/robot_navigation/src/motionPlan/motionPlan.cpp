@@ -543,7 +543,7 @@ void motionPlan::localizationCallback(const robot_communication::localizationInf
   getStartFlag = true; // 获取到起点标志位
 
   // 2026-1-7修改 全局规划一直运行
-  getEndFlag = true;
+  //getEndFlag = true;
 }
 
 // 静态地图订阅回调函数
