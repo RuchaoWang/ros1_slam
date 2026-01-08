@@ -71,7 +71,7 @@ public:
     // params（用全局参数加载也可以；这里两边都兼容）
     nh_.param("IS_SIM", is_sim_, true);
 
-    nh_.param("LOOKAHEAD_DIST", lookahead_dist_, 0.6);
+    nh_.param("LOOKAHEAD_DIST", lookahead_dist_, 0.6);  //前瞻距离
     nh_.param("GOAL_TOL", goal_tol_, 0.25);
 
     nh_.param("MAX_VX", max_vx_, 0.4);
@@ -130,7 +130,7 @@ private:
   {
     path_ = *msg;
     has_path_ = !path_.poses.empty();  //检测路径更新和是否为空
-    cout << "has_path_:" << has_path_;
+    //std::cout << "has_path_: " << has_path_ << std::endl;
   }
 
   void goalCb(const geometry_msgs::PoseStampedConstPtr& msg)
@@ -179,10 +179,10 @@ private:
     {
       const double px = path_.poses[i].pose.position.x;
       const double py = path_.poses[i].pose.position.y;
-      const double dx = px - x_;
+      const double dx = px - x_;  // 对路径每个点 i
       const double dy = py - y_;
-      const double d2 = dx*dx + dy*dy;
-      if (d2 < best_d2) { best_d2 = d2; nearest = i; }
+      const double d2 = dx*dx + dy*dy; //平方距离
+      if (d2 < best_d2) { best_d2 = d2; nearest = i; } //找到让 d2 最小的 i
     }
 
     // 2) 从 nearest 开始累计到 lookahead_dist
@@ -194,12 +194,13 @@ private:
       const double y0 = path_.poses[i].pose.position.y;
       const double x1 = path_.poses[i+1].pose.position.x;
       const double y1 = path_.poses[i+1].pose.position.y;
-      const double seg = std::hypot(x1-x0, y1-y0);
-      acc += seg;
-      if (acc >= lookahead_dist_) { idx = i+1; break; }
+      const double seg = std::hypot(x1-x0, y1-y0); // 每一段长度
+      acc += seg;  //累计的路径段长度
+      if (acc >= lookahead_dist_) { idx = i+1; break; } //把 idx 设为前瞻点索引
       idx = i+1;
     }
 
+    // local_goal：Marker 从这里构造并发布
     gx = path_.poses[idx].pose.position.x;
     gy = path_.poses[idx].pose.position.y;
 
@@ -214,39 +215,43 @@ private:
 
     // marker
     visualization_msgs::Marker mk;
-    mk.header = path_.header;
-    mk.ns = "pid_local_goal";
-    mk.id = 1;
-    mk.type = visualization_msgs::Marker::SPHERE;
-    mk.action = visualization_msgs::Marker::ADD;
+    mk.header = path_.header; //marker 的 frame_id / 时间戳跟着 path 
+    mk.ns = "pid_local_goal"; //marker 的命名空间，用于 RViz 里分组/覆盖
+    mk.id = 1; //同 ns + id 的 marker 会被覆盖更新，你每次 publish 都更新同一个球，而不是越画越多
+    mk.type = visualization_msgs::Marker::SPHERE; //画一个球
+    mk.action = visualization_msgs::Marker::ADD; //添加/更新
     mk.pose.position.x = gx;
     mk.pose.position.y = gy;
-    mk.pose.position.z = 0.1;
-    mk.pose.orientation.w = 1.0;
-    mk.scale.x = 0.18;
+    mk.pose.position.z = 0.1; //前瞻点
+    mk.pose.orientation.w = 1.0; //单位四元数（无旋转）
+    mk.scale.x = 0.18; //球大小 0.18m
     mk.scale.y = 0.18;
     mk.scale.z = 0.18;
-    mk.color.a = 1.0;
+    mk.color.a = 1.0; //不透明、橙黄色
     mk.color.r = 1.0;
     mk.color.g = 0.8;
     mk.color.b = 0.0;
     marker_pub_.publish(mk);
 
     // goal 距离判断：更偏向“终点点”而不是前瞻点
+    // 到达判断：用的是“路径最后一个点”
     const auto& last = path_.poses.back().pose.position;
     const double dist_goal = std::hypot(last.x - x_, last.y - y_);
     if (dist_goal <= goal_tol_) return false; // 认为到达 -> onTimer 里会刹停
     return true;
   }
 
+  // 刹停输出
+  //用在：没 odom、没 path、到达终点、（你如果之后补 timeout 也应该用它）
   void publishZero()
   {
-    geometry_msgs::Twist z;
+    geometry_msgs::Twist z; //把 vx vy wz 全置零发出去
     cmd_pub_.publish(z);
   }
 
   void onTimer(const ros::TimerEvent& ev)
   {
+    //没 odom / 没 path
     if (!has_odom_)
     {
       publishZero();
